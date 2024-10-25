@@ -1,0 +1,5 @@
+.env
+path/
+new_jobs.csv
+sent_jobs.csv
+config.json
