@@ -2,6 +2,7 @@ import json
 import os
 import threading
 import time
+import pandas as pd
 from flask import Flask, render_template, request, jsonify
 from job_scraper import load_config, save_config, job_scraper
 import logging
@@ -11,7 +12,7 @@ app = Flask(__name__)
 
 app.logger.disabled = True
 log = logging.getLogger('werkzeug')
-log.disabled = True
+# log.disabled = True
 
 # Global variables
 scraper_thread = None
@@ -94,6 +95,37 @@ def stop_scraper():
 def get_logs():
     logs = log_capture_string.getvalue()
     return jsonify({"logs": logs})
+
+@app.route('/clear_logs', methods=['POST'])
+def clear_logs():
+    log_capture_string.truncate(0)
+    log_capture_string.seek(0)
+    logging.info("Logs cleared by user")
+    return jsonify({"status": "success", "message": "Logs cleared successfully."})
+
+@app.route('/get_jobs')
+def get_jobs():
+    try:
+        if os.path.exists('sent_jobs.csv'):
+            # Read the CSV file
+            jobs_df = pd.read_csv('sent_jobs.csv')
+            
+            # Select only the columns we want to display
+            columns_to_display = ['title', 'company', 'location', 'date_posted', 'job_url', 'job_type', 'is_remote']
+            display_df = jobs_df[columns_to_display].fillna('')
+            
+            # Convert to list of dictionaries for JSON response
+            jobs_list = display_df.to_dict('records')
+            
+            # Sort by date posted (most recent first)
+            jobs_list = sorted(jobs_list, key=lambda x: x['date_posted'] if x['date_posted'] else '', reverse=True)
+            
+            return jsonify({"status": "success", "jobs": jobs_list})
+        else:
+            return jsonify({"status": "error", "message": "No job data available"})
+    except Exception as e:
+        logging.error(f"Error fetching job data: {str(e)}")
+        return jsonify({"status": "error", "message": f"Error fetching job data: {str(e)}"})
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5002)
